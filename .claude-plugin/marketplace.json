@@ -1,6 +1,6 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
-  "name": "spawnbox-dev-claude-plugins",
+  "name": "evannadeau-claude-plugins",
   "description": "Personal Claude Code plugins",
   "owner": {
     "name": "SpawnBox-dev"
@@ -8,7 +8,7 @@
   "plugins": [
     {
       "name": "orchestrator",
-      "description": "A persistent product co-pilot that learns your project and you. PrimeAgent + agent-channel cross-session orchestration via real-time MCP channel notifications.",
+      "description": "A persistent product co-pilot that learns your project and you. SQLite-backed knowledge base with session briefings, semantic recall, and capture hooks.",
       "version": "0.30.51",
       "author": {
         "name": "SpawnBox-dev"

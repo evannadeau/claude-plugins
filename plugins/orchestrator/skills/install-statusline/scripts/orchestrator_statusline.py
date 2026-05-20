@@ -7,9 +7,9 @@ a colored role indicator + project basename. Suitable for Claude Code's
 `statusLine` setting.
 
 Output format (single line, ANSI-colored):
-    🟡 PA       quayline    (yellow, kind=prime)
-    ⚪ SA       quayline    (default, kind=subordinate)
-    🔴 DISCORD  quayline    (red, kind=discord-bot)
+    🟡 PA       myproject    (yellow, kind=prime)
+    ⚪ SA       myproject    (default, kind=subordinate)
+    🔴 DISCORD  myproject    (red, kind=discord-bot)
 
 Session names (e.g. PA-2026-05-13-12-00-00) are intentionally not
 included — they add timestamp noise without informational value. The

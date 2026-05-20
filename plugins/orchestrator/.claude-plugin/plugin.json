@@ -1,6 +1,6 @@
 {
   "name": "orchestrator",
-  "description": "A persistent product co-pilot that learns your project and you. PrimeAgent + agent-channel cross-session orchestration via real-time MCP channel notifications.",
+  "description": "A persistent product co-pilot that learns your project and you. SQLite-backed knowledge base with session briefings, semantic recall, and capture hooks.",
   "version": "0.30.51",
-  "keywords": ["orchestrator", "memory", "agent", "context", "knowledge", "prime-agent", "agent-channel"]
+  "keywords": ["orchestrator", "memory", "agent", "context", "knowledge"]
 }

@@ -20,9 +20,9 @@ This skill installs a small Python script + thin wrapper that reads
 those env vars and emits a one-line, ANSI-colored statusline like:
 
 ```
-🟡 PA  PA-2026-05-13-12-00-00  quayline
-⚪ SA  SA-frontend              quayline
-🔴 DISCORD  DISCORD-LIVE-...    quayline
+🟡 PA  PA-2026-05-13-12-00-00  myproject
+⚪ SA  SA-frontend              myproject
+🔴 DISCORD  DISCORD-LIVE-...    myproject
 ```
 
 This is the in-Claude complement to the Windows-only `wt.exe --tabColor`
