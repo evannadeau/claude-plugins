@@ -113,12 +113,39 @@ if [ -n "$SID" ] && [ -n "${CLAUDE_PROJECT_DIR:-}" ]; then
   fi
 fi
 
+# --- /dream consolidation cadence gate ---
+# If a dream is due (no run on record, or last run > 7 days ago) AND no run is
+# currently claimed, claim it and append a directive telling the session to run /dream.
+DREAM_DIRECTIVE=""
+if [ -n "${CLAUDE_PROJECT_DIR:-}" ]; then
+  D_STATE_DIR="$CLAUDE_PROJECT_DIR/.orchestrator-state"
+  D_MARKER="$D_STATE_DIR/dream-marker"
+  D_CLAIM="$D_STATE_DIR/dream-claim"
+  D_DUE=""
+  if [ ! -f "$D_MARKER" ]; then
+    D_DUE="1"
+  elif [ -n "$(find "$D_MARKER" -mmin +10080 -print 2>/dev/null)" ]; then
+    D_DUE="1"   # last completion > 7 days (10080 min) ago
+  fi
+  # Suppress if a run is already claimed and the claim is fresh (< 120 min old).
+  if [ "$D_DUE" = "1" ] && [ -f "$D_CLAIM" ] \
+     && [ -z "$(find "$D_CLAIM" -mmin +120 -print 2>/dev/null)" ]; then
+    D_DUE=""
+  fi
+  if [ "$D_DUE" = "1" ]; then
+    mkdir -p "$D_STATE_DIR" 2>/dev/null || true
+    [ -f "$D_STATE_DIR/.gitignore" ] || printf '*\n' > "$D_STATE_DIR/.gitignore" 2>/dev/null || true
+    : > "$D_CLAIM" 2>/dev/null || true   # claim the run
+    DREAM_DIRECTIVE="\\n\\nA /dream knowledge-base consolidation is DUE. Before other work, run the orchestrator \\\`/dream\\\` command - an incremental semantic consolidation pass. It records its own completion; do not skip it."
+  fi
+fi
+
 SID_LINE=""
 if [ -n "$SID" ]; then
   SID_LINE="\\n\\nYour session ID for this conversation is: ${SID}\\nPass this as \\\`session_id\\\` on EVERY orchestrator tool call. It enables cross-session discovery so sibling sessions see what you create and you see what they're working on."
 fi
 
-CONTEXT="MANDATORY FIRST ACTIONS: (1) Call \\\`briefing\\\` with event \\\"${ORIENT_EVENT}\\\" AND session_id set. (2) Invoke \\\`orchestrator:getting-started\\\`. (3) From now on, invoke \\\`orchestrator:every-turn\\\` EVERY turn before and after acting. These are not optional.${SID_LINE}"
+CONTEXT="MANDATORY FIRST ACTIONS: (1) Call \\\`briefing\\\` with event \\\"${ORIENT_EVENT}\\\" AND session_id set. (2) Invoke \\\`orchestrator:getting-started\\\`. (3) From now on, invoke \\\`orchestrator:every-turn\\\` EVERY turn before and after acting. These are not optional.${SID_LINE}${DREAM_DIRECTIVE}"
 
 # Bash JSON escape: backslash, quote, newline, tab, control chars.
 ESC="$CONTEXT"
