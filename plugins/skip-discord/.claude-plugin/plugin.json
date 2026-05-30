@@ -1,0 +1,6 @@
+{
+  "name": "skip-discord",
+  "description": "Skip's two-way Discord channel — forked discord plugin that injects inbound messages (including an allowlist of trusted bots) into the live session, enabling scheduled bot-to-bot wake. Hand-edit access.json for v1.",
+  "version": "0.0.1",
+  "keywords": ["discord", "messaging", "channel", "mcp", "skip"]
+}
