@@ -25,6 +25,16 @@
       },
       "source": "./plugins/docs-manager",
       "category": "productivity"
+    },
+    {
+      "name": "skip-discord",
+      "description": "Skip's two-way Discord channel — injects inbound messages (including a trusted-bot allowlist) into the live session for scheduled bot-to-bot wake.",
+      "version": "0.0.1",
+      "author": {
+        "name": "SpawnBox-dev"
+      },
+      "source": "./plugins/skip-discord",
+      "category": "productivity"
     }
   ]
 }
