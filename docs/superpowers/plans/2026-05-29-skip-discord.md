@@ -285,6 +285,22 @@ Replace with:
 }
 ```
 
+- [ ] **Step 3b: Pass `allowBots` through `readAccessFile()`** — caught during execution: the function enumerates fields explicitly, so without this it strips `allowBots` on load and the allowlist never populates.
+
+Find:
+```ts
+      textChunkLimit: parsed.textChunkLimit,
+      chunkMode: parsed.chunkMode,
+    }
+```
+Replace with:
+```ts
+      textChunkLimit: parsed.textChunkLimit,
+      chunkMode: parsed.chunkMode,
+      allowBots: parsed.allowBots,
+    }
+```
+
 - [ ] **Step 4: Drop untrusted bots inside `gate()`**
 
 Find:
