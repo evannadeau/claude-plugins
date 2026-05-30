@@ -55,7 +55,9 @@ vendored official plugin (wiped on update; doesn't give us an owned server).
   of `#skip-control`.
 - **Home:** `evannadeau-claude-plugins` marketplace → `plugins/skip-discord/`,
   registered in `.claude-plugin/marketplace.json` (alongside `orchestrator`,
-  `docs-manager`).
+  `docs-manager`). Branched off `single-orchestrator` (the branch where that
+  marketplace lives) and merged back into it, like PRs #1/#2 — **not** off
+  `main` (which is the pristine upstream mirror, `spawnbox-dev-claude-plugins`).
 - **State:** new state dir `~/.claude/channels/skip-discord/access.json`, so the
   fork never shares access state with the official plugin (which is being
   retired from skip's session — see §8).
@@ -66,7 +68,7 @@ vendored official plugin (wiped on update; doesn't give us an owned server).
 
 | Component | Change |
 |---|---|
-| Discord client intents | **Add** `GatewayIntentBits.MessageContent` (the fork must read bot message content). |
+| Discord client intents | **No code change** — `GatewayIntentBits.MessageContent` is already present (server.ts:86). The new Skip app must have the **Message Content privileged intent enabled in the Discord developer portal**. |
 | `messageCreate` filter | **Replace** the blanket bot-drop (see §5). |
 | Token / branding | New `SKIP_DISCORD_BOT_TOKEN`; plugin name/strings → `skip-discord` / "Skip". |
 | State path | `~/.claude/channels/skip-discord/`. |
