@@ -30,11 +30,12 @@ import {
   type Interaction,
 } from 'discord.js'
 import { randomBytes } from 'crypto'
+import { isOwnMessage, shouldDropBot, senderPassesGroupGate } from './access-filter'
 import { readFileSync, writeFileSync, mkdirSync, readdirSync, rmSync, statSync, renameSync, realpathSync, chmodSync } from 'fs'
 import { homedir } from 'os'
 import { join, sep } from 'path'
 
-const STATE_DIR = process.env.DISCORD_STATE_DIR ?? join(homedir(), '.claude', 'channels', 'discord')
+const STATE_DIR = process.env.SKIP_DISCORD_STATE_DIR ?? join(homedir(), '.claude', 'channels', 'skip-discord')
 const ACCESS_FILE = join(STATE_DIR, 'access.json')
 const APPROVED_DIR = join(STATE_DIR, 'approved')
 const ENV_FILE = join(STATE_DIR, '.env')
@@ -50,14 +51,14 @@ try {
   }
 } catch {}
 
-const TOKEN = process.env.DISCORD_BOT_TOKEN
+const TOKEN = process.env.SKIP_DISCORD_BOT_TOKEN
 const STATIC = process.env.DISCORD_ACCESS_MODE === 'static'
 
 if (!TOKEN) {
   process.stderr.write(
-    `discord channel: DISCORD_BOT_TOKEN required\n` +
+    `skip-discord: SKIP_DISCORD_BOT_TOKEN required\n` +
     `  set in ${ENV_FILE}\n` +
-    `  format: DISCORD_BOT_TOKEN=MTIz...\n`,
+    `  format: SKIP_DISCORD_BOT_TOKEN=MTIz...\n`,
   )
   process.exit(1)
 }
@@ -118,6 +119,8 @@ type Access = {
   textChunkLimit?: number
   /** Split on paragraph boundaries instead of hard char count. */
   chunkMode?: 'length' | 'newline'
+  /** Bot author IDs allowed to trigger Skip (e.g. a reminder bot). Skip's own posts are always filtered. */
+  allowBots?: string[]
 }
 
 function defaultAccess(): Access {
@@ -162,6 +165,7 @@ function readAccessFile(): Access {
       replyToMode: parsed.replyToMode,
       textChunkLimit: parsed.textChunkLimit,
       chunkMode: parsed.chunkMode,
+      allowBots: parsed.allowBots,
     }
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') return defaultAccess()
@@ -243,6 +247,11 @@ async function gate(msg: Message): Promise<GateResult> {
   const senderId = msg.author.id
   const isDM = msg.channel.type === ChannelType.DM
 
+  // The messageCreate handler only filters our own posts; untrusted bots are
+  // dropped here, where access (and allowBots) is loaded. Trusted bots fall through.
+  const allowBots = access.allowBots ?? []
+  if (shouldDropBot(msg.author.bot, senderId, allowBots)) return { action: 'drop' }
+
   if (isDM) {
     if (access.allowFrom.includes(senderId)) return { action: 'deliver', access }
     if (access.dmPolicy === 'allowlist') return { action: 'drop' }
@@ -284,7 +293,7 @@ async function gate(msg: Message): Promise<GateResult> {
   if (!policy) return { action: 'drop' }
   const groupAllowFrom = policy.allowFrom ?? []
   const requireMention = policy.requireMention ?? true
-  if (groupAllowFrom.length > 0 && !groupAllowFrom.includes(senderId)) {
+  if (!senderPassesGroupGate(senderId, groupAllowFrom, allowBots)) {
     return { action: 'drop' }
   }
   if (requireMention && !(await isMentioned(msg, access.mentionPatterns))) {
@@ -803,8 +812,8 @@ client.on('interactionCreate', async (interaction: Interaction) => {
 })
 
 client.on('messageCreate', msg => {
-  if (msg.author.bot) return
-  handleInbound(msg).catch(e => process.stderr.write(`discord: handleInbound failed: ${e}\n`))
+  if (isOwnMessage(msg.author.id, client.user?.id)) return
+  handleInbound(msg).catch(e => process.stderr.write(`skip-discord: handleInbound failed: ${e}\n`))
 })
 
 async function handleInbound(msg: Message): Promise<void> {
