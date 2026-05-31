@@ -56,16 +56,59 @@ export function getLiveSessionIds(): Set<string> | null {
 }
 
 /**
+ * Process-wide opt-in self-session filter (QLN-145 Bug 1).
+ *
+ * On a fresh single-claude launch the MCP server's `selfSession.session_id`
+ * can drift from the harness session_id - for example, when a stale per-PID
+ * `active-session-<pid>` file from a prior session was never reaped and PID
+ * reuse hands `getFallbackSessionId` a session_id that is no longer live.
+ * The MCP then writes a row into `agent_channel.db` under that drifted id,
+ * and the every-turn cross-session injection - which only knows to filter
+ * by the CALLER (harness) id - reports the MCP's own row as a phantom
+ * "1 sibling session active" for the whole process lifetime.
+ *
+ * `startAgentChannel` (and the first explicit session_id observed via
+ * `resolveSessionId`) calls `setSelfSessionForLiveFilter` so this module
+ * can exclude the MCP-self row in addition to the caller id. The filter is
+ * point-in-time (latest registered self id only) rather than a historical
+ * exclusion set; production rebinding flow removes the old row from
+ * agent_channel.db before re-registering, so the previous self id no longer
+ * needs filtering once it has been re-keyed.
+ *
+ * Tests reset via `clearSelfSessionForLiveFilter` in `beforeEach`.
+ */
+let selfSessionIdForFilter: string | null = null;
+
+export function setSelfSessionForLiveFilter(sessionId: string): void {
+  if (sessionId) selfSessionIdForFilter = sessionId;
+}
+
+export function clearSelfSessionForLiveFilter(): void {
+  selfSessionIdForFilter = null;
+}
+
+export function getSelfSessionForLiveFilter(): string | null {
+  return selfSessionIdForFilter;
+}
+
+/**
  * Given the caller's own sessionId, return the heartbeat-fresh OTHER session
  * ids (excluding self), or `null` if the agent-channel state isn't available
  * so the caller can fall back to its 24h DB-only logic.
+ *
+ * Excludes BOTH the caller id and the MCP-self id (when registered via
+ * `setSelfSessionForLiveFilter`) so a drifted MCP-self row can't surface
+ * as a phantom sibling. See QLN-145 Bug 1 for the underlying race.
  */
 export function getLiveOtherSessionIds(sessionId: string): string[] | null {
   const live = getLiveSessionIds();
   if (live === null) return null;
+  const self = selfSessionIdForFilter;
   const others: string[] = [];
   for (const id of live) {
-    if (id !== sessionId) others.push(id);
+    if (id === sessionId) continue;
+    if (self && id === self) continue;
+    others.push(id);
   }
   return others;
 }

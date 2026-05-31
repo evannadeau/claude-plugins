@@ -1,6 +1,6 @@
 {
   "name": "orchestrator",
   "description": "A persistent product co-pilot that learns your project and you. SQLite-backed knowledge base with session briefings, semantic recall, and capture hooks.",
-  "version": "0.30.52",
+  "version": "0.30.53",
   "keywords": ["orchestrator", "memory", "agent", "context", "knowledge"]
 }
