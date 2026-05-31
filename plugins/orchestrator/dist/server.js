@@ -6518,8 +6518,8 @@ var require_dist = __commonJS((exports, module) => {
 });
 
 // mcp/server.ts
-import { resolve, join as join5 } from "path";
-import { existsSync as existsSync6, readFileSync as readFileSync3, writeFileSync } from "fs";
+import { resolve, join as join6 } from "path";
+import { existsSync as existsSync7, readFileSync as readFileSync3, writeFileSync } from "fs";
 import { execSync } from "child_process";
 
 // node_modules/zod/v3/external.js
@@ -23067,14 +23067,23 @@ function getLiveSessionIds() {
     return null;
   }
 }
+var selfSessionIdForFilter = null;
+function setSelfSessionForLiveFilter(sessionId) {
+  if (sessionId)
+    selfSessionIdForFilter = sessionId;
+}
 function getLiveOtherSessionIds(sessionId) {
   const live = getLiveSessionIds();
   if (live === null)
     return null;
+  const self = selfSessionIdForFilter;
   const others = [];
   for (const id of live) {
-    if (id !== sessionId)
-      others.push(id);
+    if (id === sessionId)
+      continue;
+    if (self && id === self)
+      continue;
+    others.push(id);
   }
   return others;
 }
@@ -24827,6 +24836,44 @@ class PermissionRelay {
   }
 }
 
+// mcp/engine/startup_hygiene.ts
+import { existsSync as existsSync6, readdirSync as readdirSync3, unlinkSync as unlinkSync2 } from "fs";
+import { join as join5 } from "path";
+function defaultIsAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+function reapStaleActiveSessionFiles(stateDir, isAlive = defaultIsAlive) {
+  if (!existsSync6(stateDir))
+    return 0;
+  let reaped = 0;
+  let entries;
+  try {
+    entries = readdirSync3(stateDir);
+  } catch {
+    return 0;
+  }
+  for (const entry of entries) {
+    const m = entry.match(/^active-session-(\d+)$/);
+    if (!m)
+      continue;
+    const pid = Number(m[1]);
+    if (!Number.isFinite(pid) || pid <= 0)
+      continue;
+    if (isAlive(pid))
+      continue;
+    try {
+      unlinkSync2(join5(stateDir, entry));
+      reaped++;
+    } catch {}
+  }
+  return reaped;
+}
+
 // mcp/tools/permission.ts
 var RespondToPermissionInputSchema = exports_external.object({
   request_id: exports_external.string().describe("The request_id from the permission_request_pending channel event"),
@@ -24857,7 +24904,7 @@ async function handleRespondToPermission(input, ctx) {
 import { homedir as homedir2 } from "os";
 var PLUGIN_VERSION = (() => {
   try {
-    const pkgPath = join5(import.meta.dir, "..", "package.json");
+    const pkgPath = join6(import.meta.dir, "..", "package.json");
     return JSON.parse(readFileSync3(pkgPath, "utf8")).version;
   } catch {
     return "0.0.0-unknown";
@@ -24920,12 +24967,12 @@ function getFallbackSessionId() {
     return envId;
   }
   const projectDir = process.env.ORCHESTRATOR_PROJECT_ROOT || process.env.CLAUDE_PROJECT_DIR || process.cwd();
-  const stateDir = join5(projectDir, ".orchestrator-state");
+  const stateDir = join6(projectDir, ".orchestrator-state");
   const claudePid = findClaudeAncestorPid();
   if (claudePid) {
-    const perPidFile = join5(stateDir, `active-session-${claudePid}`);
+    const perPidFile = join6(stateDir, `active-session-${claudePid}`);
     try {
-      if (existsSync6(perPidFile)) {
+      if (existsSync7(perPidFile)) {
         const raw = readFileSync3(perPidFile, "utf8").trim();
         if (raw && /^[a-zA-Z0-9_-]+$/.test(raw)) {
           cachedFallbackSessionId = raw;
@@ -24936,15 +24983,15 @@ function getFallbackSessionId() {
       }
     } catch {}
   }
-  const file = join5(stateDir, "active-session");
+  const file = join6(stateDir, "active-session");
   try {
-    if (existsSync6(file)) {
+    if (existsSync7(file)) {
       const raw = readFileSync3(file, "utf8").trim();
       if (raw && /^[a-zA-Z0-9_-]+$/.test(raw)) {
         cachedFallbackSessionId = raw;
         if (claudePid) {
-          const perPidFile = join5(stateDir, `active-session-${claudePid}`);
-          if (!existsSync6(perPidFile)) {
+          const perPidFile = join6(stateDir, `active-session-${claudePid}`);
+          if (!existsSync7(perPidFile)) {
             try {
               writeFileSync(perPidFile, raw, "utf8");
               process.stderr.write(`[orchestrator] wrote self-healing per-PID file ${perPidFile} = ${raw.slice(0, 8)}... ` + `(future restarts will use this instead of racing legacy)
@@ -24963,6 +25010,7 @@ function getFallbackSessionId() {
 function resolveSessionId(explicit) {
   if (explicit && /^[a-zA-Z0-9_-]+$/.test(explicit)) {
     cachedFallbackSessionId = explicit;
+    setSelfSessionForLiveFilter(explicit);
   }
   return explicit ?? getFallbackSessionId();
 }
@@ -25048,22 +25096,22 @@ async function startSidecar() {
     }
   } catch {}
   try {
-    const { unlinkSync: unlinkSync2 } = await import("fs");
-    unlinkSync2(portFile);
+    const { unlinkSync: unlinkSync3 } = await import("fs");
+    unlinkSync3(portFile);
   } catch {}
   const baseArgs = ["--port", "0", "--port-file", portFile];
   let result = await trySpawn(["uvx", "--with-requirements", requirementsPath, "python", sidecarPath, ...baseArgs], portFile, "uvx", uvxTimeoutMs, logFd);
   if (!result) {
     try {
-      const { unlinkSync: unlinkSync2 } = await import("fs");
-      unlinkSync2(portFile);
+      const { unlinkSync: unlinkSync3 } = await import("fs");
+      unlinkSync3(portFile);
     } catch {}
     result = await trySpawn(["python", sidecarPath, ...baseArgs], portFile, "python", pythonTimeoutMs, logFd);
   }
   if (!result) {
     try {
-      const { unlinkSync: unlinkSync2 } = await import("fs");
-      unlinkSync2(portFile);
+      const { unlinkSync: unlinkSync3 } = await import("fs");
+      unlinkSync3(portFile);
     } catch {}
     result = await trySpawn(["python3", sidecarPath, ...baseArgs], portFile, "python3", pythonTimeoutMs, logFd);
   }
@@ -25251,8 +25299,8 @@ server.tool("system_status", "Check the health of the orchestrator system: embed
     const claudeProjectDir = process.env.CLAUDE_PROJECT_DIR;
     const cwd = process.cwd();
     const resolvedProjectDir = orchProjectRoot || claudeProjectDir || cwd;
-    const fallbackFile = join5(resolvedProjectDir, ".orchestrator-state", "active-session");
-    const fallbackExists = existsSync6(fallbackFile);
+    const fallbackFile = join6(resolvedProjectDir, ".orchestrator-state", "active-session");
+    const fallbackExists = existsSync7(fallbackFile);
     lines.push(`- **Agent-channel**: INACTIVE`);
     lines.push(`    - CLAUDE_SESSION_ID env: ${envSid}`);
     lines.push(`    - ORCHESTRATOR_PROJECT_ROOT env: ${orchProjectRoot ?? "unset"}`);
@@ -25330,10 +25378,10 @@ server.tool("install_embeddings", "Check and install dependencies needed for sem
   } catch {}
   let modelCached = false;
   try {
-    const { existsSync: existsSync7 } = await import("fs");
+    const { existsSync: existsSync8 } = await import("fs");
     const { homedir: homedir3 } = await import("os");
     const hubRoot = process.env.HF_HUB_CACHE ? process.env.HF_HUB_CACHE : resolve(process.env.HF_HOME || resolve(homedir3(), ".cache", "huggingface"), "hub");
-    modelCached = existsSync7(resolve(hubRoot, "models--BAAI--bge-m3"));
+    modelCached = existsSync8(resolve(hubRoot, "models--BAAI--bge-m3"));
   } catch {}
   if (action === "check") {
     lines.push("## Embedding Dependencies Check");
@@ -26478,7 +26526,7 @@ function startAgentChannel() {
     return;
   }
   const projectHash = projectDir.replace(/[\\/:]/g, "-").replace(/^-+/, "");
-  const projectsHashDir = join5(homedir2(), ".claude", "projects", projectHash);
+  const projectsHashDir = join6(homedir2(), ".claude", "projects", projectHash);
   const roleEnv = process.env.ORCHESTRATOR_AGENT_ROLE ?? process.env.SPAWNBOX_AGENT_ROLE;
   const role = roleEnv === "prime" ? "prime" : "subordinate";
   const name = process.env.ORCHESTRATOR_AGENT_NAME ?? process.env.SPAWNBOX_AGENT_NAME ?? `auto-${sessionId.slice(0, 8)}`;
@@ -26494,7 +26542,8 @@ function startAgentChannel() {
     current_task: null,
     ...kind ? { kind } : {}
   };
-  const stateDir = join5(projectDir, ".orchestrator-state", "agent-channel");
+  setSelfSessionForLiveFilter(sessionId);
+  const stateDir = join6(projectDir, ".orchestrator-state", "agent-channel");
   if (PERMISSION_RELAY_ENABLED && role === "subordinate") {
     permissionRelay = new PermissionRelay(getProjectDb(), {
       selfSessionId: sessionId,
@@ -26541,8 +26590,8 @@ function startAgentChannel() {
           const params = parsed.data;
           let paSessionId = null;
           try {
-            const sessionsFile = join5(stateDir, "sessions.json");
-            if (existsSync6(sessionsFile)) {
+            const sessionsFile = join6(stateDir, "sessions.json");
+            if (existsSync7(sessionsFile)) {
               const data = JSON.parse(readFileSync3(sessionsFile, "utf8"));
               const entries = Array.isArray(data) ? data : data?.sessions ?? [];
               paSessionId = entries.find((e) => e.role === "prime")?.session_id ?? null;
@@ -26787,6 +26836,14 @@ foreach ($s in $siblings) {
     }
   } catch (err) {
     process.stderr.write(`[orchestrator] dedup: sibling scan failed (non-fatal, watchdog will catch): ${err}
+`);
+  }
+}
+{
+  const startupProjectDir = process.env.ORCHESTRATOR_PROJECT_ROOT || process.env.CLAUDE_PROJECT_DIR || process.cwd();
+  const reaped = reapStaleActiveSessionFiles(join6(startupProjectDir, ".orchestrator-state"));
+  if (reaped > 0) {
+    process.stderr.write(`[orchestrator] startup hygiene: reaped ${reaped} stale active-session-<pid> file(s) in ${join6(startupProjectDir, ".orchestrator-state")}
 `);
   }
 }

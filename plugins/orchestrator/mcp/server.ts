@@ -50,6 +50,8 @@ import { AgentChannel } from "./engine/agent_channel";
 import type { SessionEntry } from "./engine/agent_channel_state";
 import { PermissionRelay } from "./engine/permission_relay";
 import { appendSystemEvent } from "./engine/agent_channel_state";
+import { setSelfSessionForLiveFilter } from "./engine/live_sessions";
+import { reapStaleActiveSessionFiles } from "./engine/startup_hygiene";
 import { handleRespondToPermission, RespondToPermissionInputSchema } from "./tools/permission";
 import { homedir } from "node:os";
 
@@ -254,6 +256,13 @@ function resolveSessionId(explicit?: string): string | undefined {
   // is the only reliable signal during MCP server lifetime.
   if (explicit && /^[a-zA-Z0-9_-]+$/.test(explicit)) {
     cachedFallbackSessionId = explicit;
+    // QLN-145 Bug 1: explicit session_ids are the strongest signal of the
+    // harness's real id. If the MCP earlier registered a drifted self id
+    // (stale per-PID file + PID reuse, or pre-hook race), rebind the
+    // live-sessions self-filter to the harness id so the every-turn
+    // injection stops misreporting our self-row as a sibling. Safe to
+    // call repeatedly; setter is idempotent for the same value.
+    setSelfSessionForLiveFilter(explicit);
   }
   return explicit ?? getFallbackSessionId();
 }
@@ -2286,6 +2295,14 @@ function startAgentChannel(): void {
     ...(kind ? { kind } : {}),
   };
 
+  // QLN-145 Bug 1: register the MCP's selfSession id with the live-sessions
+  // filter so that even if `sessionId` later turns out to disagree with the
+  // harness session_id (e.g. stale active-session-<pid> file + PID reuse on
+  // cold start), the every-turn cross-session injection won't surface our
+  // own row as a phantom sibling. `resolveSessionId(explicit)` will rebind
+  // this on the first tool call that passes an explicit harness id.
+  setSelfSessionForLiveFilter(sessionId);
+
   const stateDir = join(projectDir, ".orchestrator-state", "agent-channel");
 
   // SA-side permission relay: created only when env opt-in AND this is a
@@ -2881,6 +2898,32 @@ foreach ($s in $siblings) {
     // Non-fatal - the orphan watchdog is the second line of defense.
     process.stderr.write(
       `[orchestrator] dedup: sibling scan failed (non-fatal, watchdog will catch): ${err}\n`,
+    );
+  }
+}
+
+// QLN-145 Bug 2: startup hygiene runs unconditionally - it doesn't depend
+// on parent claude resolution and benefits future startups even if THIS
+// one is about to exit (no-claude-ancestor case below). Walks
+// <project>/.orchestrator-state for active-session-<pid> files whose PID
+// is no longer alive and unlinks them. Race-safe via process.kill(pid, 0)
+// liveness probe; lost races with concurrent sessions tolerated, next
+// startup retries. See mcp/engine/startup_hygiene.ts for the full
+// rationale (and the upstream PR #8 history this was extracted from).
+{
+  const startupProjectDir =
+    process.env.ORCHESTRATOR_PROJECT_ROOT ||
+    process.env.CLAUDE_PROJECT_DIR ||
+    process.cwd();
+  const reaped = reapStaleActiveSessionFiles(
+    join(startupProjectDir, ".orchestrator-state"),
+  );
+  if (reaped > 0) {
+    process.stderr.write(
+      `[orchestrator] startup hygiene: reaped ${reaped} stale active-session-<pid> file(s) in ${join(
+        startupProjectDir,
+        ".orchestrator-state",
+      )}\n`,
     );
   }
 }
